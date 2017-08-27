@@ -7,6 +7,7 @@ from time import sleep
 import json
 import re
 import sys
+import os.path
 
 try:
     #Py3
@@ -22,6 +23,26 @@ except ImportError:
 
 API = "YouDaoCV"
 API_KEY = "659600698"
+
+CACHE_FILE = os.path.join(os.path.expanduser('~'), '.cache', 'youdao')
+
+def load_cache():
+    cache = {}
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, 'r') as fin:
+            for line in fin:
+                line = line.strip()
+                word, data = line.split('\x07')
+                cache[word] = data
+    return cache
+
+
+def write_cache(word, data):
+    with open(CACHE_FILE, 'a') as fout:
+        fout.write(word + '\x07' + data + '\n')
+
+
+CACHE = load_cache()
 
 
 class Colorizing(object):
@@ -146,15 +167,20 @@ def print_explanation(data, options):
 
 def lookup_word(word):
     word = quote(word)
-    try:
-        data = urlopen(
-            "http://fanyi.youdao.com/openapi.do?keyfrom={0}&"
-            "key={1}&type=data&doctype=json&version=1.1&q={2}"
-            .format(API, API_KEY, word)).read().decode("utf-8")
-    except IOError:
-        print("Network is unavailable")
+    if not word in CACHE:
+        try:
+            data = urlopen(
+                "http://fanyi.youdao.com/openapi.do?keyfrom={0}&"
+                "key={1}&type=data&doctype=json&version=1.1&q={2}"
+                .format(API, API_KEY, word)).read().decode("utf-8")
+            CACHE[word] = data
+            write_cache(word, data)
+        except IOError:
+            print("Network is unavailable")
     else:
-        print_explanation(json.loads(data), options)
+        data = CACHE[word]
+
+    print_explanation(json.loads(data), options)
 
 
 if __name__ == "__main__":
